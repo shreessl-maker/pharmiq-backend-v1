@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+logoUrl: { type: String, default: "" },
 
 const clientSchema = new mongoose.Schema(
   {
