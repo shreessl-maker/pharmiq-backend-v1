@@ -1,68 +1,44 @@
 import express from "express";
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
-import Client from "../models/Client.js";
-import User from "../models/User.js";
+import dotenv from "dotenv";
 
+dotenv.config();
 const router = express.Router();
 
-// Memory storage for file uploads
+// Multer memory storage (no local saving)
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// ===== Super Admin Logo Upload =====
-router.post("/logo/superadmin", upload.single("file"), async (req, res) => {
-  try {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: "pharmiq/logos" },
-      async (error, result) => {
-        if (error)
-          return res.status(500).json({ message: "Cloudinary error", error });
-
-        await User.findOneAndUpdate(
-          { role: "superadmin" },
-          { profileImage: result.secure_url }
-        );
-
-        res.json({
-          message: "Super Admin logo uploaded successfully",
-          url: result.secure_url,
-        });
-      }
-    );
-    stream.end(req.file.buffer);
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Upload failed", error: error.message });
-  }
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ===== Client Logo Upload =====
-router.post("/logo/client/:id", upload.single("file"), async (req, res) => {
+// Upload route
+router.post("/logo/:userType", upload.single("logo"), async (req, res) => {
   try {
-    const clientId = req.params.id;
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: `pharmiq/clients/${clientId}` },
-      async (error, result) => {
-        if (error)
-          return res.status(500).json({ message: "Cloudinary error", error });
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
 
-        await Client.findByIdAndUpdate(clientId, {
-          logoUrl: result.secure_url,
-        });
+    const fileBuffer = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
 
-        res.json({
-          message: "Client logo uploaded successfully",
-          url: result.secure_url,
-        });
-      }
-    );
-    stream.end(req.file.buffer);
+    const result = await cloudinary.uploader.upload(fileBuffer, {
+      folder: `PharmIQ/${req.params.userType}`,
+      use_filename: true,
+      unique_filename: false,
+    });
+
+    res.json({
+      message: "Logo uploaded successfully",
+      url: result.secure_url,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Upload failed", error: error.message });
+    console.error("Upload Error:", error);
+    res.status(500).json({ message: "Upload failed", error: error.message });
   }
 });
 
