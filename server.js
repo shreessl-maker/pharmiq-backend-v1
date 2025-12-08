@@ -1,4 +1,3 @@
-server.js
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -27,4 +26,7 @@ app.use("/api/tests", testRoutes);
 app.use("/api/results", resultRoutes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`✅ PharmIQ API Running on port ${PORT}`);
+});
+
