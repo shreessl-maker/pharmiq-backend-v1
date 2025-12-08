@@ -5,14 +5,12 @@ import User from "../models/User.js";
 
 export const getDashboardStats = async (req, res) => {
   try {
-    // Count documents from different collections
     const totalClients = await Client.countDocuments();
     const totalTests = await Test.countDocuments();
     const totalResults = await Result.countDocuments();
     const totalStaff = await User.countDocuments({ role: "staff" });
     const totalAdmins = await User.countDocuments({ role: "admin" });
 
-    // Get latest results (limit 5)
     const latestResults = await Result.find()
       .sort({ createdAt: -1 })
       .limit(5)
