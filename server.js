@@ -7,6 +7,8 @@ import clientRoutes from "./routes/clientRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
 import resultRoutes from "./routes/resultRoutes.js";
 import seedRoutes from "./routes/seedRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
+app.use("/api/upload", uploadRoutes);
 
 dotenv.config();
 const app = express();
