@@ -3,6 +3,8 @@ import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import Client from "../models/Client.js";
 import User from "../models/User.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
+app.use("/api/upload", uploadRoutes);
 
 const router = express.Router();
 const storage = multer.memoryStorage();
