@@ -1,16 +1,16 @@
 import mongoose from "mongoose";
-logoUrl: { type: String, default: "" },
 
-const clientSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String },
-    address: { type: String },
-    subdomain: { type: String, required: true, unique: true },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  },
-  { timestamps: true }
-);
+const clientSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  companyName: { type: String },
+  address: { type: String },
+  phone: { type: String },
+  password: { type: String, required: true },
+  logoUrl: { type: String, default: "" }, // ✅ Correctly placed inside schema
+  createdAt: { type: Date, default: Date.now },
+});
 
-export default mongoose.model("Client", clientSchema);
+const Client = mongoose.model("Client", clientSchema);
+
+export default Client;
