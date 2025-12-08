@@ -1,0 +1,312 @@
+
+=========controllers/authController.js=======
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
+import Client from "../models/Client.js";
+
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ message: "Invalid password" });
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role, clientId: user.clientId },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+    res.json({ token, role: user.role, clientId: user.clientId });
+  } catch (err) {
+    res.status(500).json({ message: "Login error", error: err.message });
+  }
+};
+
+
+========controllers/clientController.js======
+import Client from "../models/Client.js";
+import User from "../models/User.js";
+import bcrypt from "bcryptjs";
+
+export const createClient = async (req, res) => {
+  try {
+    const { name, domain, adminEmail, password } = req.body;
+    const existing = await Client.findOne({ adminEmail });
+    if (existing) return res.status(400).json({ message: "Client already exists" });
+
+    const client = await Client.create({ name, domain, adminEmail });
+    const hashed = await bcrypt.hash(password, 10);
+
+    await User.create({
+      clientId: client._id,
+      name: "Client Admin",
+      email: adminEmail,
+      password: hashed,
+      role: "admin"
+    });
+
+    res.json({ message: "Client created successfully", client });
+  } catch (err) {
+    res.status(500).json({ message: "Error creating client", error: err.message });
+  }
+};
+
+
+
+=======controllers/testController.js======
+import Test from "../models/Test.js";
+import Question from "../models/Question.js";
+import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
+import { extractTextFromPDF } from "../utils/pdfParser.js";
+import { generateQuestionsFromText } from "../utils/aiQuestionGenerator.js";
+
+export const createTest = async (req, res) => {
+  try {
+    const { title, scheduledAt, clientId } = req.body;
+    const file = req.file;
+    const pdfUrl = await uploadToCloudinary(file.path);
+
+    // Extract text & generate questions
+    const text = await extractTextFromPDF(file.path);
+    const questions = await generateQuestionsFromText(text);
+
+    const test = await Test.create({ clientId, title, pdfUrl, scheduledAt });
+    for (const q of questions) {
+      await Question.create({ ...q, clientId, testId: test._id });
+    }
+
+    res.json({ message: "Test created successfully", test, questions });
+  } catch (err) {
+    res.status(500).json({ message: "Test creation failed", error: err.message });
+  }
+};
+
+
+
+
+========controllers/resultController.js==========
+import Result from "../models/Result.js";
+import Question from "../models/Question.js";
+
+export const submitResult = async (req, res) => {
+  try {
+    const { clientId, testId, userId, answers } = req.body;
+    let score = 0;
+
+    for (const ans of answers) {
+      const q = await Question.findById(ans.questionId);
+      if (q && q.correctAnswer && q.correctAnswer === ans.userAnswer) {
+        ans.isCorrect = true;
+        score += 1;
+      } else {
+        ans.isCorrect = false;
+      }
+    }
+
+    const total = answers.length;
+    const percentage = Math.round((score / total) * 100);
+
+    const result = await Result.create({
+      clientId,
+      testId,
+      userId,
+      score: percentage,
+      answers
+    });
+
+    res.json({ message: "Result submitted", score: percentage, result });
+  } catch (err) {
+    res.status(500).json({ message: "Result error", error: err.message });
+  }
+};
+
+
+
+==========routes/authRoutes.js==========
+import express from "express";
+import { login } from "../controllers/authController.js";
+const router = express.Router();
+
+router.post("/login", login);
+
+export default router;
+
+
+
+==========routes/clientRoutes.js=======
+import express from "express";
+import { createClient } from "../controllers/clientController.js";
+const router = express.Router();
+
+router.post("/create", createClient);
+
+export default router;
+
+
+
+
+==========routes/testRoutes.js==========
+import express from "express";
+import multer from "multer";
+import { createTest } from "../controllers/testController.js";
+
+const upload = multer({ dest: "uploads/" });
+const router = express.Router();
+
+router.post("/create", upload.single("pdf"), createTest);
+
+export default router;
+
+
+
+
+=========routes/resultRoutes.js========
+import express from "express";
+import { submitResult } from "../controllers/resultController.js";
+const router = express.Router();
+
+router.post("/submit", submitResult);
+
+export default router;
+
+
+
+=========utils/cloudinaryUpload.js========
+import cloudinary from "cloudinary";
+import dotenv from "dotenv";
+dotenv.config();
+
+cloudinary.v2.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+export const uploadToCloudinary = async (filePath) => {
+  try {
+    const res = await cloudinary.v2.uploader.upload(filePath, { folder: "pharmiq" });
+    return res.secure_url;
+  } catch (err) {
+    console.error("Cloudinary upload failed", err);
+    throw err;
+  }
+};
+
+
+
+
+========utils/pdfParser.js=========
+import fs from "fs";
+import pdfParse from "pdf-parse";
+
+export const extractTextFromPDF = async (filePath) => {
+  const dataBuffer = fs.readFileSync(filePath);
+  const data = await pdfParse(dataBuffer);
+  return data.text;
+};
+
+
+
+
+===========utils/aiQuestionGenerator.js==========
+export async function generateQuestionsFromText(text) {
+  if (!process.env.OPENAI_API_KEY) {
+    console.log("⚠️  AI module disabled: OpenAI API key not found.");
+    return [
+      {
+        text: "Sample Question (AI Disabled)",
+        type: "objective",
+        options: ["A", "B", "C", "D"],
+        correctAnswer: "A",
+        modelAnswer: "This is a sample since AI is disabled."
+      }
+    ];
+  }
+
+  // AI code placeholder (activates automatically when key added)
+  return [];
+}
+
+
+
+
+
+==========data/demoData.js=========
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import Client from "../models/Client.js";
+import User from "../models/User.js";
+import Test from "../models/Test.js";
+import Question from "../models/Question.js";
+
+dotenv.config();
+
+const seedDemo = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+
+    await Promise.all([
+      Client.deleteMany(),
+      User.deleteMany(),
+      Test.deleteMany(),
+      Question.deleteMany()
+    ]);
+
+    const client = await Client.create({
+      name: "MediPro Pharma Pvt. Ltd.",
+      domain: "medipro.pharmiq.app",
+      adminEmail: "admin@medipro.com"
+    });
+
+    const adminPassword = await bcrypt.hash("Admin@123", 10);
+    const staffPassword = await bcrypt.hash("Staff@123", 10);
+
+    await User.create([
+      { clientId: client._id, name: "Admin", email: "admin@medipro.com", password: adminPassword, role: "admin" },
+      { clientId: client._id, name: "Staff", email: "staff@medipro.com", password: staffPassword, role: "staff" }
+    ]);
+
+    const test = await Test.create({
+      clientId: client._id,
+      title: "Product Alpha Overview",
+      pdfUrl: "https://placeholder.pdf",
+      scheduledAt: new Date()
+    });
+
+    await Question.create([
+      {
+        clientId: client._id,
+        testId: test._id,
+        text: "What is the key benefit of Product Alpha?",
+        type: "objective",
+        options: ["Cost saving", "Taste", "Color", "Packaging"],
+        correctAnswer: "Cost saving"
+      },
+      {
+        clientId: client._id,
+        testId: test._id,
+        text: "Describe Product Alpha briefly.",
+        type: "subjective",
+        modelAnswer: "Product Alpha improves efficiency and reduces cost."
+      }
+    ]);
+
+    console.log("✅ Demo data seeded successfully");
+    process.exit();
+  } catch (err) {
+    console.error("❌ Demo seeding failed", err);
+    process.exit(1);
+  }
+};
+
+seedDemo();
+
+
+
+
+
+
