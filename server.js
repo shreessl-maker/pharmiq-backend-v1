@@ -4,6 +4,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 
 // Import route files
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import clientRoutes from "./routes/clientRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
@@ -37,6 +38,7 @@ app.use("/api/tests", testRoutes);
 app.use("/api/results", resultRoutes);
 app.use("/api/seed", seedRoutes);
 app.use("/api/upload", uploadRoutes); // ✅ Correct position now
+app.use("/api/dashboard", dashboardRoutes);
 
 // Start the server
 const PORT = process.env.PORT || 5000;
