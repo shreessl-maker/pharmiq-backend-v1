@@ -3,13 +3,13 @@ import { getAllResults, getUserResults, saveResult } from "../controllers/result
 
 const router = express.Router();
 
-// ✅ For Super Admin / Admin
+// ✅ For admin or superadmin
 router.get("/", getAllResults);
 
-// ✅ For Staff / User
+// ✅ For specific user
 router.get("/:userId", getUserResults);
 
-// ✅ For submitting test results
+// ✅ For saving new result
 router.post("/", saveResult);
 
 export default router;
