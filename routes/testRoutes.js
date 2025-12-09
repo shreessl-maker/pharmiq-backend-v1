@@ -1,14 +1,23 @@
 import express from "express";
-import multer from "multer";
-import { createTest, getTestsByClient } from "../controllers/testController.js";
+import {
+  createTest,
+  updateTestStatus,
+  getAllTests,
+  getLiveTests,
+  getPastTests,
+  submitResult
+} from "../controllers/testController.js";
 
 const router = express.Router();
-const upload = multer({ dest: "uploads/" });
 
-// POST /api/tests/create
-router.post("/create", upload.single("pdf"), createTest);
+// admin
+router.post("/create", createTest);
+router.patch("/:id/status", updateTestStatus);
+router.get("/all/:clientId", getAllTests);
 
-// GET /api/tests/client/:clientId
-router.get("/client/:clientId", getTestsByClient);
+// staff
+router.get("/live/:clientId", getLiveTests);
+router.get("/past/:staffId", getPastTests);
+router.post("/submit", submitResult);
 
 export default router;
